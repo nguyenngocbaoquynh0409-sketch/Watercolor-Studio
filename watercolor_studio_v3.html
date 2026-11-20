@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architectural Watercolor Studio</title>
+<style>
+:root{font-family:Inter,Arial,sans-serif;color:#27343a;background:#f3f5f4}*{box-sizing:border-box}
+body{margin:0}.shell{max-width:1500px;margin:auto;padding:22px}h1{font-size:24px;margin:0 0 6px}.sub{color:#66757b;margin:0 0 18px}
+.layout{display:grid;grid-template-columns:290px 1fr;gap:18px}.panel,.stage{background:white;border:1px solid #dce4e4;border-radius:16px;padding:18px}
+.panel{display:flex;flex-direction:column;gap:15px}label{font-size:13px;font-weight:650;display:block;margin-bottom:7px}
+input[type=range]{width:100%;accent-color:#447e80}input[type=file]{width:100%;font-size:12px}
+select,button{width:100%;padding:11px;border:1px solid #cfd9d9;border-radius:9px;background:white;color:#263b40;font-size:13px}
+button{cursor:pointer}button.primary{background:#286a6c;color:white;border:0;font-weight:700}button:disabled{opacity:.5;cursor:not-allowed}
+.pair{display:flex;justify-content:space-between;font-size:12px}.hint{font-size:12px;color:#738187;line-height:1.5}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stage{min-width:0}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+.canvas-wrap{background:#e9ecec;min-height:430px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;position:relative}
+canvas{display:block;max-width:100%;max-height:72vh;transform-origin:0 0;touch-action:none;cursor:crosshair;box-shadow:0 8px 30px #0001}
+#placeholder{color:#819094;text-align:center;padding:30px}.small{font-size:12px;color:#6d797d}
+@media(max-width:800px){.layout{grid-template-columns:1fr}.canvas-wrap{min-height:250px}}
+</style></head>
+<body><main class="shell"><h1>Watercolor Studio <span style="color:#50888a">/ Architecture</span></h1>
+<p class="sub">Architectural Ink & Watercolor Sketch • Cọ chọn vùng • Vân giấy • Xuất PNG 2K</p>
+<div class="layout"><aside class="panel">
+<div><label for="upload">1. Tải ảnh gốc</label><input id="upload" type="file" accept="image/*"></div>
+<div><label for="mode">2. Phạm vi hiệu ứng</label><select id="mode"><option value="full">Toàn bộ trang giấy</option><option value="fade">Nhạt dần ra giấy trắng từ viền</option><option value="brush">Tô chọn vùng bằng cọ</option></select></div>
+<div><div class="pair"><label for="brush">Kích thước cọ</label><output id="brushVal">90 px</output></div><input id="brush" type="range" min="10" max="400" value="90"></div>
+<div><div class="pair"><label for="soft">Độ mềm cọ / chuyển tiếp</label><output id="softVal">65%</output></div><input id="soft" type="range" min="0" max="100" value="65"></div>
+<div><div class="pair"><label for="fade">Độ rộng vùng mờ viền</label><output id="fadeVal">22%</output></div><input id="fade" type="range" min="0" max="48" value="22"></div>
+<div><div class="pair"><label for="effect">Cường độ màu nước</label><output id="effectVal">75%</output></div><input id="effect" type="range" min="0" max="100" value="75"></div>
+<div><div class="pair"><label for="detail">Giữ nét kiến trúc</label><output id="detailVal">70%</output></div><input id="detail" type="range" min="0" max="100" value="70"></div>
+<div><div class="pair"><label for="ink">Nét mực sketch</label><output id="inkVal">78%</output></div><input id="ink" type="range" min="0" max="100" value="78"></div>
+<div><div class="pair"><label for="inkWidth">Độ dày nét mực</label><output id="inkWidthVal">2 px</output></div><input id="inkWidth" type="range" min="1" max="8" step="1" value="2"></div>
+<div><label for="inkColor">Màu nét mực sketch</label><input id="inkColor" type="color" value="#252d30" style="width:100%;height:38px;cursor:pointer"></div>
+<div><label for="paperType">Loại vân giấy</label><select id="paperType"><option value="cold">Cold Press — hạt nổi</option><option value="hot">Hot Press — mịn</option><option value="rough">Rough — thô, sần</option><option value="custom">Ảnh giấy tải lên (JPEG/PNG)</option></select></div>
+<div><label for="paperUpload">Tải vân giấy riêng (JPG/PNG)</label><input id="paperUpload" type="file" accept="image/jpeg,image/png"></div>
+<div><div class="pair"><label for="pigment">Độ loang sắc tố</label><output id="pigmentVal">68%</output></div><input id="pigment" type="range" min="0" max="100" value="68"></div>
+<div><div class="pair"><label for="paper">Vân giấy watercolor</label><output id="paperVal">55%</output></div><input id="paper" type="range" min="0" max="100" value="55"></div>
+<div><label for="paintMode">3. Công cụ tô vùng</label><select id="paintMode"><option value="add">Cọ thêm hiệu ứng màu nước</option><option value="erase">Cọ xóa hiệu ứng màu nước</option></select></div>
+<div class="row"><button id="all">Chọn tất cả</button><button id="clear">Xóa vùng chọn</button></div>
+<div class="row"><button id="undo">Hoàn tác nét cọ</button><button id="compare">Giữ để xem gốc</button></div>
+<button id="save" class="primary" disabled>Xuất PNG 2K</button>
+<div class="hint">Ở chế độ <b>Tô chọn vùng</b>, rê chuột hoặc dùng cảm ứng để tô. Cọ xóa giúp trả lại vùng ảnh gốc. Chế độ mờ viền hòa ảnh vào giấy trắng. Kích thước xuất tối đa 2560 px ở cạnh dài, giữ nguyên tỷ lệ ảnh.</div>
+</aside>
+<section class="stage"><div class="toolbar"><b>Khung xem trước</b><span id="info" class="small">Chưa tải ảnh</span><span id="busy" class="small"></span></div>
+<div class="toolbar"><button id="zoomOut" style="width:auto">−</button><span id="zoomValue">100%</span><button id="zoomIn" style="width:auto">+</button><button id="zoomReset" style="width:auto">Vừa khung</button><span class="small">Lăn chuột trên ảnh để zoom • Alt + kéo để di chuyển</span></div>
+<div class="canvas-wrap" id="viewport"><div id="placeholder">Chọn ảnh để bắt đầu</div><canvas id="view" hidden></canvas></div>
+<p class="small">Hiệu ứng Ink & Watercolor Sketch mô phỏng bằng xử lý ảnh trên trình duyệt, không phải mô hình AI tạo sinh. Xuất 2K tăng kích thước và làm nét nhẹ, không thể phục hồi chi tiết vốn không có trong ảnh gốc.</p></section></div></main>
+<script>
+const $=id=>document.getElementById(id);
+const view=$('view'),ctx=view.getContext('2d',{willReadFrequently:true});
+let original=null,water=null,mask=null,history=[],strokes=[],drawing=false,last=null,showOriginal=false;
+let src=null,W=0,H=0,job=0;
+let zoom=1,panX=0,panY=0,panning=false,panLast=null,customPaper=null;
+function applyZoom(){view.style.transform=`translate(${panX}px,${panY}px) scale(${zoom})`;$('zoomValue').textContent=Math.round(zoom*100)+'%'}
+function zoomAt(factor,cx,cy){
+ const old=zoom;zoom=Math.max(.5,Math.min(6,zoom*factor));const k=zoom/old;
+ panX=cx-(cx-panX)*k;panY=cy-(cy-panY)*k;applyZoom();
+}
+$('zoomIn').onclick=()=>zoomAt(1.25,view.clientWidth/2,view.clientHeight/2);
+$('zoomOut').onclick=()=>zoomAt(.8,view.clientWidth/2,view.clientHeight/2);
+$('zoomReset').onclick=()=>{zoom=1;panX=panY=0;applyZoom()};
+$('viewport').addEventListener('wheel',e=>{
+ if(!src)return;e.preventDefault();
+ const rect=view.getBoundingClientRect(),sx=view.clientWidth/(rect.width/zoom),sy=view.clientHeight/(rect.height/zoom);
+ zoomAt(e.deltaY<0?1.12:1/1.12,(e.clientX-rect.left)/zoom+panX,(e.clientY-rect.top)/zoom+panY);
+},{passive:false});
+$('paperUpload').onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ if(!['image/jpeg','image/png'].includes(f.type)){alert('Chỉ hỗ trợ JPG hoặc PNG');return}
+ const url=URL.createObjectURL(f),im=new Image();
+ im.onload=()=>{customPaper=im;$('paperType').value='custom';scheduleWater();URL.revokeObjectURL(url)};
+ im.src=url;
+};
+$('paperType').onchange=scheduleWater;
+$('inkColor').oninput=scheduleWater;
+function rgbHex(h){return [1,3,5].map(i=>parseInt(h.slice(i,i+2),16))}
+function textureSample(x,y,type,tex){
+ if(type==='custom'&&tex){const xx=x%tex.width,yy=y%tex.height,idx=(yy*tex.width+xx)*4;
+ return ((tex.data[idx]+tex.data[idx+1]+tex.data[idx+2])/3-128)/128;}
+ if(type==='hot')return (noise(x*2,y*2)-.5)*.35;
+ if(type==='rough')return (noise(Math.floor(x/5),Math.floor(y/5))-.5)*1.3+(noise(x,y)-.5)*.6;
+ return (noise(Math.floor(x/3),Math.floor(y/3))-.5)*.8+(noise(x,y)-.5)*.4;
+}
+
+const clamp=(x,a=0,b=255)=>Math.max(a,Math.min(b,x));
+const val=id=>+$ (id).value;
+function makeCanvas(w,h){let c=document.createElement('canvas');c.width=w;c.height=h;return c}
+function baseCanvas(){let c=makeCanvas(W,H);c.getContext('2d').drawImage(src,0,0,W,H);return c}
+function noise(x,y){let n=Math.sin(x*127.1+y*311.7)*43758.5453;return n-Math.floor(n)}
+function buildWater(){
+ if(!original)return;
+ const g0=original.getContext('2d',{willReadFrequently:true});
+ const source=g0.getImageData(0,0,W,H).data;
+ const wash=makeCanvas(W,H),wg=wash.getContext('2d',{willReadFrequently:true});
+ wg.filter='blur(2.1px) saturate(1.17) contrast(.87) brightness(1.055)';wg.drawImage(original,0,0);wg.filter='none';
+ const blurred=wg.getImageData(0,0,W,H).data;
+ const output=wg.createImageData(W,H),d=output.data;
+ const amount=val('effect')/100, ink=val('ink')/100, pigment=val('pigment')/100, paper=val('paper')/100,detail=val('detail')/100;
+ const inkRgb=rgbHex($('inkColor').value),strokeWidth=val('inkWidth'),paperType=$('paperType').value;
+ let paperData=null;
+ if(customPaper&&paperType==='custom'){
+  let pc=makeCanvas(Math.min(512,customPaper.naturalWidth),Math.min(512,customPaper.naturalHeight));
+  pc.getContext('2d').drawImage(customPaper,0,0,pc.width,pc.height);
+  paperData=pc.getContext('2d').getImageData(0,0,pc.width,pc.height);
+ }
+ const luminance=(i)=>source[i]*.299+source[i+1]*.587+source[i+2]*.114;
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+  const i=(y*W+x)*4;
+  const l=luminance(i);
+  const ix=(y*W+Math.min(W-1,x+strokeWidth))*4,iy=(Math.min(H-1,y+strokeWidth)*W+x)*4;
+  const edge=Math.abs(l-luminance(ix))+Math.abs(l-luminance(iy));
+  // Ink is selectively strengthened at architectural boundaries.
+  const line=Math.pow(clamp((edge-13)/74,0,1),.72)*ink*detail;
+  const broad=(Math.sin(x*.045+y*.023)+Math.cos(y*.066-x*.035))*.5;
+  const gran=(noise(Math.floor(x/3),Math.floor(y/3))-.5)*2;
+  const mottling=(broad*.65+gran*.35)*pigment;
+  const papergrain=textureSample(x,y,paperType,paperData)*paper*23;
+  for(let k=0;k<3;k++){
+   const q=Math.round(blurred[i+k]/22)*22;
+   let v=blurred[i+k]*.68+q*.32;
+   v+=mottling*18+papergrain;
+   // Preserve luminous white paper and avoid yellow tint.
+   v=v*(1-line*.82)+inkRgb[k]*line*.82;
+   const sketch=clamp(v);
+   d[i+k]=clamp(source[i+k]*(1-amount)+sketch*amount);
+  }
+  d[i+3]=255;
+ }
+ wg.putImageData(output,0,0);water=wash;
+}
+
+function resetMask(alpha=0){mask=makeCanvas(W,H);let m=mask.getContext('2d');if(alpha){m.fillStyle=`rgba(255,255,255,${alpha})`;m.fillRect(0,0,W,H)}history=[];strokes=[]}
+function stamp(x,y){
+ let m=mask.getContext('2d'),r=val('brush')/2,soft=val('soft')/100;
+ m.save();m.globalCompositeOperation=$('paintMode').value==='erase'?'destination-out':'source-over';
+ let grad=m.createRadialGradient(x,y,r*(1-soft),x,y,r);
+ grad.addColorStop(0,'rgba(255,255,255,1)');grad.addColorStop(1,soft===0?'rgba(255,255,255,1)':'rgba(255,255,255,0)');
+ m.fillStyle=grad;m.beginPath();m.arc(x,y,r,0,Math.PI*2);m.fill();m.restore();
+}
+function render(){
+ if(!original)return;
+ let mode=$('mode').value;
+ ctx.clearRect(0,0,W,H);
+ if(showOriginal){ctx.drawImage(original,0,0);return}
+ if(mode==='fade'){
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+ let m=makeCanvas(W,H),mg=m.getContext('2d'),edge=val('fade')/100;
+ if(edge===0){mg.fillStyle='#fff';mg.fillRect(0,0,W,H)}
+ else {
+ // rectangular edge fade based on distance to nearest border
+ let image=mg.createImageData(W,H),d=image.data,extent=Math.max(1,Math.min(W,H)*edge);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+ let wobble=(Math.sin(x*.031+y*.014)*.13+Math.sin(y*.049-x*.018)*.09+(noise(Math.floor(x/17),Math.floor(y/17))-.5)*.23)*extent;
+ let t=clamp((Math.min(x,y,W-1-x,H-1-y)+wobble)/extent,0,1);t=t*t*(3-2*t);
+ let i=(y*W+x)*4;d[i]=d[i+1]=d[i+2]=255;d[i+3]=Math.round(t*255)
+ }mg.putImageData(image,0,0);
+ }
+ let layer=makeCanvas(W,H),lg=layer.getContext('2d');lg.drawImage(water,0,0);lg.globalCompositeOperation='destination-in';lg.drawImage(m,0,0);ctx.drawImage(layer,0,0);
+ }else if(mode==='brush'){
+ ctx.drawImage(original,0,0);
+ let layer=makeCanvas(W,H),lg=layer.getContext('2d');lg.drawImage(water,0,0);lg.globalCompositeOperation='destination-in';lg.drawImage(mask,0,0);ctx.drawImage(layer,0,0);
+ }else ctx.drawImage(water,0,0);
+}
+let timer;function scheduleWater(){clearTimeout(timer);$('busy').textContent='Đang xử lý…';timer=setTimeout(()=>{buildWater();render();$('busy').textContent=''},80)}
+$('upload').addEventListener('change',e=>{
+ const file=e.target.files[0];if(!file)return;
+ const url=URL.createObjectURL(file),im=new Image();
+ im.onload=()=>{
+ src=im;let scale=Math.min(1,1300/Math.max(im.naturalWidth,im.naturalHeight));W=Math.max(1,Math.round(im.naturalWidth*scale));H=Math.max(1,Math.round(im.naturalHeight*scale));
+ view.width=W;view.height=H;view.hidden=false;$('placeholder').hidden=true;
+ original=baseCanvas();resetMask();zoom=1;panX=panY=0;applyZoom();$('info').textContent=`Gốc ${im.naturalWidth} × ${im.naturalHeight} • xem trước ${W} × ${H}`;
+ $('save').disabled=false;scheduleWater();URL.revokeObjectURL(url);
+ };im.src=url;
+});
+['brush','soft','fade','effect','detail','ink','inkWidth','pigment','paper'].forEach(id=>$(id).addEventListener('input',()=>{
+ $(id+'Val').textContent=val(id)+(['brush','inkWidth'].includes(id)?' px':'%');
+ if(['effect','detail','ink','inkWidth','pigment','paper'].includes(id))scheduleWater();else render();
+}));
+$('mode').onchange=render;$('all').onclick=()=>{if(!original)return;resetMask(1);render()};
+$('clear').onclick=()=>{if(!original)return;resetMask();render()};
+$('undo').onclick=()=>{if(!original||!history.length)return;let im=history.pop();mask.getContext('2d').putImageData(im,0,0);render()};
+$('compare').addEventListener('pointerdown',()=>{showOriginal=true;render()});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>$('compare').addEventListener(ev,()=>{showOriginal=false;render()}));
+function point(e){let b=view.getBoundingClientRect();return {x:(e.clientX-b.left)*W/b.width,y:(e.clientY-b.top)*H/b.height}}
+view.addEventListener('pointerdown',e=>{
+ if(!original)return;
+ if(e.altKey||e.button===1){e.preventDefault();panning=true;panLast={x:e.clientX,y:e.clientY};view.setPointerCapture(e.pointerId);return}
+ if($('mode').value!=='brush')return;
+ e.preventDefault();view.setPointerCapture(e.pointerId);
+ if(history.length>=12)history.shift();
+ history.push(mask.getContext('2d').getImageData(0,0,W,H));drawing=true;last=point(e);stamp(last.x,last.y);render()
+});
+view.addEventListener('pointermove',e=>{
+ if(panning){panX+=e.clientX-panLast.x;panY+=e.clientY-panLast.y;panLast={x:e.clientX,y:e.clientY};applyZoom();return}
+ if(!drawing)return;e.preventDefault();let p=point(e),dist=Math.hypot(p.x-last.x,p.y-last.y),step=Math.max(2,val('brush')/8),n=Math.ceil(dist/step);
+ for(let i=1;i<=n;i++)stamp(last.x+(p.x-last.x)*i/n,last.y+(p.y-last.y)*i/n);
+ last=p;render()
+});
+['pointerup','pointercancel','lostpointercapture'].forEach(ev=>view.addEventListener(ev,()=>{drawing=false;last=null;panning=false;panLast=null}));
+$('save').onclick=async()=>{
+ if(!src)return;
+ let button=$('save');button.disabled=true;button.textContent='Đang xuất 2K…';
+ try{
+ // Rebuild at export resolution to avoid enlarging a low-resolution preview
+ let old={W,H,original,water,mask};
+ let scale=2560/Math.max(src.naturalWidth,src.naturalHeight);
+ W=Math.max(1,Math.round(src.naturalWidth*scale));H=Math.max(1,Math.round(src.naturalHeight*scale));
+ original=baseCanvas();buildWater();
+ let newMask=makeCanvas(W,H);newMask.getContext('2d').drawImage(old.mask,0,0,W,H);mask=newMask;
+ let out=makeCanvas(W,H),og=out.getContext('2d');
+ // render into export canvas by temporarily switching the display context's dimensions
+ let temp=view.width,temph=view.height;view.width=W;view.height=H;render();og.drawImage(view,0,0);
+ view.width=temp;view.height=temph;
+ W=old.W;H=old.H;original=old.original;water=old.water;mask=old.mask;render();
+ let blob=await new Promise(resolve=>out.toBlob(resolve,'image/png'));
+ if(!blob)throw Error('Không tạo được PNG');
+ let url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='watercolor-architecture-2k.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(err){alert('Lỗi xuất ảnh: '+err.message)}
+ finally{button.disabled=false;button.textContent='Xuất PNG 2K'}
+};
+</script></body></html>

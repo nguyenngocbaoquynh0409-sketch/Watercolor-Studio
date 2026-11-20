@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Architectural Watercolor Studio</title>
+<style>
+:root{font-family:Inter,Arial,sans-serif;color:#27343a;background:#f3f5f4}*{box-sizing:border-box}
+body{margin:0}.shell{max-width:1500px;margin:auto;padding:22px}h1{font-size:24px;margin:0 0 6px}.sub{color:#66757b;margin:0 0 18px}
+.layout{display:grid;grid-template-columns:290px 1fr;gap:18px}.panel,.stage{background:white;border:1px solid #dce4e4;border-radius:16px;padding:18px}
+.panel{display:flex;flex-direction:column;gap:15px}label{font-size:13px;font-weight:650;display:block;margin-bottom:7px}
+input[type=range]{width:100%;accent-color:#447e80}input[type=file]{width:100%;font-size:12px}
+select,button{width:100%;padding:11px;border:1px solid #cfd9d9;border-radius:9px;background:white;color:#263b40;font-size:13px}
+button{cursor:pointer}button.primary{background:#286a6c;color:white;border:0;font-weight:700}button:disabled{opacity:.5;cursor:not-allowed}
+.pair{display:flex;justify-content:space-between;font-size:12px}.hint{font-size:12px;color:#738187;line-height:1.5}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stage{min-width:0}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:13px}
+.canvas-wrap{background:#e9ecec;min-height:430px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;position:relative}
+canvas{display:block;max-width:100%;max-height:72vh;touch-action:none;cursor:crosshair;box-shadow:0 8px 30px #0001}
+#placeholder{color:#819094;text-align:center;padding:30px}.small{font-size:12px;color:#6d797d}
+@media(max-width:800px){.layout{grid-template-columns:1fr}.canvas-wrap{min-height:250px}}
+</style></head>
+<body><main class="shell"><h1>Watercolor Studio <span style="color:#50888a">/ Architecture</span></h1>
+<p class="sub">Biến ảnh thành tranh màu nước • Tô chọn vùng bằng cọ • Xuất ảnh 2K không crop</p>
+<div class="layout"><aside class="panel">
+<div><label for="upload">1. Tải ảnh gốc</label><input id="upload" type="file" accept="image/*"></div>
+<div><label for="mode">2. Phạm vi hiệu ứng</label><select id="mode"><option value="full">Toàn bộ trang giấy</option><option value="fade">Nhạt dần ra giấy trắng từ viền</option><option value="brush">Tô chọn vùng bằng cọ</option></select></div>
+<div><div class="pair"><label for="brush">Kích thước cọ</label><output id="brushVal">90 px</output></div><input id="brush" type="range" min="10" max="400" value="90"></div>
+<div><div class="pair"><label for="soft">Độ mềm cọ / chuyển tiếp</label><output id="softVal">65%</output></div><input id="soft" type="range" min="0" max="100" value="65"></div>
+<div><div class="pair"><label for="fade">Độ rộng vùng mờ viền</label><output id="fadeVal">22%</output></div><input id="fade" type="range" min="0" max="48" value="22"></div>
+<div><div class="pair"><label for="effect">Cường độ màu nước</label><output id="effectVal">75%</output></div><input id="effect" type="range" min="0" max="100" value="75"></div>
+<div><div class="pair"><label for="detail">Giữ nét kiến trúc</label><output id="detailVal">70%</output></div><input id="detail" type="range" min="0" max="100" value="70"></div>
+<div><label for="paintMode">3. Công cụ tô vùng</label><select id="paintMode"><option value="add">Cọ thêm hiệu ứng màu nước</option><option value="erase">Cọ xóa hiệu ứng màu nước</option></select></div>
+<div class="row"><button id="all">Chọn tất cả</button><button id="clear">Xóa vùng chọn</button></div>
+<div class="row"><button id="undo">Hoàn tác nét cọ</button><button id="compare">Giữ để xem gốc</button></div>
+<button id="save" class="primary" disabled>Xuất PNG 2K</button>
+<div class="hint">Ở chế độ <b>Tô chọn vùng</b>, rê chuột hoặc dùng cảm ứng để tô. Cọ xóa giúp trả lại vùng ảnh gốc. Chế độ mờ viền hòa ảnh vào giấy trắng. Kích thước xuất tối đa 2560 px ở cạnh dài, giữ nguyên tỷ lệ ảnh.</div>
+</aside>
+<section class="stage"><div class="toolbar"><b>Khung xem trước</b><span id="info" class="small">Chưa tải ảnh</span><span id="busy" class="small"></span></div>
+<div class="canvas-wrap"><div id="placeholder">Chọn ảnh để bắt đầu</div><canvas id="view" hidden></canvas></div>
+<p class="small">Bộ lọc màu nước mô phỏng bằng xử lý ảnh trên trình duyệt, không phải mô hình AI tạo sinh. Xuất 2K tăng kích thước và làm nét nhẹ, không thể phục hồi chi tiết vốn không có trong ảnh gốc.</p></section></div></main>
+<script>
+const $=id=>document.getElementById(id);
+const view=$('view'),ctx=view.getContext('2d',{willReadFrequently:true});
+let original=null,water=null,mask=null,history=[],strokes=[],drawing=false,last=null,showOriginal=false;
+let src=null,W=0,H=0,job=0;
+const clamp=(x,a=0,b=255)=>Math.max(a,Math.min(b,x));
+const val=id=>+$ (id).value;
+function makeCanvas(w,h){let c=document.createElement('canvas');c.width=w;c.height=h;return c}
+function baseCanvas(){let c=makeCanvas(W,H);c.getContext('2d').drawImage(src,0,0,W,H);return c}
+function buildWater(){
+ if(!original)return;
+ let c=makeCanvas(W,H),g=c.getContext('2d',{willReadFrequently:true});
+ // softened washes, followed by delicate structural outlines
+ g.filter='blur(1.3px) saturate(1.16) contrast(.93) brightness(1.035)';
+ g.drawImage(original,0,0);g.filter='none';
+ let im=g.getImageData(0,0,W,H),d=im.data,org=original.getContext('2d').getImageData(0,0,W,H).data;
+ let amount=val('effect')/100,detail=val('detail')/100;
+ // color quantization + low-amplitude pigment variation; deterministic, no yellow cast
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+ let i=(y*W+x)*4, lum=(org[i]*.299+org[i+1]*.587+org[i+2]*.114);
+ let right=(y*W+Math.min(W-1,x+1))*4,down=(Math.min(H-1,y+1)*W+x)*4;
+ let grad=(Math.abs(lum-(org[right]*.299+org[right+1]*.587+org[right+2]*.114))+
+ Math.abs(lum-(org[down]*.299+org[down+1]*.587+org[down+2]*.114)))/2;
+ let edge=Math.min(1,Math.max(0,(grad-7)/45))*detail*.52;
+ let gran=(Math.sin(x*.31+y*.17)*Math.cos(y*.47-x*.13))*3.5*amount;
+ for(let k=0;k<3;k++){
+ let q=Math.round(d[i+k]/17)*17;
+ let wash=d[i+k]*(1-.30*amount)+q*.30*amount+gran;
+ let painted=wash*(1-edge)+org[i+k]*edge*.78;
+ d[i+k]=clamp(org[i+k]*(1-amount)+painted*amount);
+ }
+ }
+ g.putImageData(im,0,0);water=c;
+}
+function resetMask(alpha=0){mask=makeCanvas(W,H);let m=mask.getContext('2d');if(alpha){m.fillStyle=`rgba(255,255,255,${alpha})`;m.fillRect(0,0,W,H)}history=[];strokes=[]}
+function stamp(x,y){
+ let m=mask.getContext('2d'),r=val('brush')/2,soft=val('soft')/100;
+ m.save();m.globalCompositeOperation=$('paintMode').value==='erase'?'destination-out':'source-over';
+ let grad=m.createRadialGradient(x,y,r*(1-soft),x,y,r);
+ grad.addColorStop(0,'rgba(255,255,255,1)');grad.addColorStop(1,soft===0?'rgba(255,255,255,1)':'rgba(255,255,255,0)');
+ m.fillStyle=grad;m.beginPath();m.arc(x,y,r,0,Math.PI*2);m.fill();m.restore();
+}
+function render(){
+ if(!original)return;
+ let mode=$('mode').value;
+ ctx.clearRect(0,0,W,H);
+ if(showOriginal){ctx.drawImage(original,0,0);return}
+ if(mode==='fade'){
+ ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+ let m=makeCanvas(W,H),mg=m.getContext('2d'),edge=val('fade')/100;
+ if(edge===0){mg.fillStyle='#fff';mg.fillRect(0,0,W,H)}
+ else {
+ // rectangular edge fade based on distance to nearest border
+ let image=mg.createImageData(W,H),d=image.data,extent=Math.max(1,Math.min(W,H)*edge);
+ for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+ let t=clamp(Math.min(x,y,W-1-x,H-1-y)/extent,0,1);t=t*t*(3-2*t);
+ let i=(y*W+x)*4;d[i]=d[i+1]=d[i+2]=255;d[i+3]=Math.round(t*255)
+ }mg.putImageData(image,0,0);
+ }
+ let layer=makeCanvas(W,H),lg=layer.getContext('2d');lg.drawImage(water,0,0);lg.globalCompositeOperation='destination-in';lg.drawImage(m,0,0);ctx.drawImage(layer,0,0);
+ }else if(mode==='brush'){
+ ctx.drawImage(original,0,0);
+ let layer=makeCanvas(W,H),lg=layer.getContext('2d');lg.drawImage(water,0,0);lg.globalCompositeOperation='destination-in';lg.drawImage(mask,0,0);ctx.drawImage(layer,0,0);
+ }else ctx.drawImage(water,0,0);
+}
+let timer;function scheduleWater(){clearTimeout(timer);$('busy').textContent='Đang xử lý…';timer=setTimeout(()=>{buildWater();render();$('busy').textContent=''},80)}
+$('upload').addEventListener('change',e=>{
+ const file=e.target.files[0];if(!file)return;
+ const url=URL.createObjectURL(file),im=new Image();
+ im.onload=()=>{
+ src=im;let scale=Math.min(1,1300/Math.max(im.naturalWidth,im.naturalHeight));W=Math.max(1,Math.round(im.naturalWidth*scale));H=Math.max(1,Math.round(im.naturalHeight*scale));
+ view.width=W;view.height=H;view.hidden=false;$('placeholder').hidden=true;
+ original=baseCanvas();resetMask();$('info').textContent=`Gốc ${im.naturalWidth} × ${im.naturalHeight} • xem trước ${W} × ${H}`;
+ $('save').disabled=false;scheduleWater();URL.revokeObjectURL(url);
+ };im.src=url;
+});
+['brush','soft','fade','effect','detail'].forEach(id=>$(id).addEventListener('input',()=>{
+ $(id+'Val').textContent=val(id)+(id==='brush'?' px':'%');
+ if(['effect','detail'].includes(id))scheduleWater();else render();
+}));
+$('mode').onchange=render;$('all').onclick=()=>{if(!original)return;resetMask(1);render()};
+$('clear').onclick=()=>{if(!original)return;resetMask();render()};
+$('undo').onclick=()=>{if(!original||!history.length)return;let im=history.pop();mask.getContext('2d').putImageData(im,0,0);render()};
+$('compare').addEventListener('pointerdown',()=>{showOriginal=true;render()});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>$('compare').addEventListener(ev,()=>{showOriginal=false;render()}));
+function point(e){let b=view.getBoundingClientRect();return {x:(e.clientX-b.left)*W/b.width,y:(e.clientY-b.top)*H/b.height}}
+view.addEventListener('pointerdown',e=>{
+ if(!original||$('mode').value!=='brush')return;
+ e.preventDefault();view.setPointerCapture(e.pointerId);
+ if(history.length>=12)history.shift();
+ history.push(mask.getContext('2d').getImageData(0,0,W,H));drawing=true;last=point(e);stamp(last.x,last.y);render()
+});
+view.addEventListener('pointermove',e=>{
+ if(!drawing)return;e.preventDefault();let p=point(e),dist=Math.hypot(p.x-last.x,p.y-last.y),step=Math.max(2,val('brush')/8),n=Math.ceil(dist/step);
+ for(let i=1;i<=n;i++)stamp(last.x+(p.x-last.x)*i/n,last.y+(p.y-last.y)*i/n);
+ last=p;render()
+});
+['pointerup','pointercancel','lostpointercapture'].forEach(ev=>view.addEventListener(ev,()=>{drawing=false;last=null}));
+$('save').onclick=async()=>{
+ if(!src)return;
+ let button=$('save');button.disabled=true;button.textContent='Đang xuất 2K…';
+ try{
+ // Rebuild at export resolution to avoid enlarging a low-resolution preview
+ let old={W,H,original,water,mask};
+ let scale=2560/Math.max(src.naturalWidth,src.naturalHeight);
+ W=Math.max(1,Math.round(src.naturalWidth*scale));H=Math.max(1,Math.round(src.naturalHeight*scale));
+ original=baseCanvas();buildWater();
+ let newMask=makeCanvas(W,H);newMask.getContext('2d').drawImage(old.mask,0,0,W,H);mask=newMask;
+ let out=makeCanvas(W,H),og=out.getContext('2d');
+ // render into export canvas by temporarily switching the display context's dimensions
+ let temp=view.width,temph=view.height;view.width=W;view.height=H;render();og.drawImage(view,0,0);
+ view.width=temp;view.height=temph;
+ W=old.W;H=old.H;original=old.original;water=old.water;mask=old.mask;render();
+ let blob=await new Promise(resolve=>out.toBlob(resolve,'image/png'));
+ if(!blob)throw Error('Không tạo được PNG');
+ let url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='watercolor-architecture-2k.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ }catch(err){alert('Lỗi xuất ảnh: '+err.message)}
+ finally{button.disabled=false;button.textContent='Xuất PNG 2K'}
+};
+</script></body></html>
